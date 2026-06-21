@@ -60,6 +60,10 @@ body{background:#0f1720;color:#e8dcc8;font-family:-apple-system,BlinkMacSystemFo
 .addl-item{font-size:11px;color:#e8dcc8;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);}
 .addl-empty{font-size:11px;color:#555;margin-bottom:8px;}
 .addins-btn{width:100%;margin-top:7px;padding:6px 0;background:transparent;border:1px solid rgba(200,147,58,0.35);color:#c8933a;border-radius:7px;font-size:10px;cursor:pointer;}
+.swap-note{font-size:9px;color:#ff9800;margin-bottom:4px;font-style:italic;}
+.swap-option{padding:12px 14px;background:#0f1720;border-radius:8px;margin-bottom:6px;font-size:13px;color:#e8dcc8;cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
+.swap-option.active{border:1px solid #c8933a;background:rgba(200,147,58,0.1);color:#c8933a;font-weight:700;}
+.swap-sched-tag{font-size:9px;color:#666;font-weight:400;}
 .fed-btn{width:100%;margin-top:7px;padding:8px 0;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:#c8933a;color:#0f1720;}
 .fed-btn.active{background:#4caf50;color:#fff;}
 /* Nutrition */
@@ -341,16 +345,20 @@ var WEEKS = {
 };
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
-var fedLog       = {};
-var addinsLog    = {};
-var notesLog     = {};
-var USDA_KEY     = "";
-var customAddins = {};
-try { fedLog       = JSON.parse(localStorage.getItem("mya_fed")          || "{}"); } catch(e){}
-try { addinsLog    = JSON.parse(localStorage.getItem("mya_addins")       || "{}"); } catch(e){}
-try { notesLog     = JSON.parse(localStorage.getItem("mya_notes")        || "{}"); } catch(e){}
-try { USDA_KEY     = localStorage.getItem("mya_usda_key")                || "";   } catch(e){}
-try { customAddins = JSON.parse(localStorage.getItem("mya_custom_addins")|| "{}"); } catch(e){}
+var fedLog          = {};
+var addinsLog       = {};
+var notesLog        = {};
+var USDA_KEY        = "";
+var customAddins    = {};
+var proteinOverrides= {};
+try { fedLog           = JSON.parse(localStorage.getItem("mya_fed")             || "{}"); } catch(e){}
+try { addinsLog        = JSON.parse(localStorage.getItem("mya_addins")          || "{}"); } catch(e){}
+try { notesLog         = JSON.parse(localStorage.getItem("mya_notes")           || "{}"); } catch(e){}
+try { USDA_KEY         = localStorage.getItem("mya_usda_key")                   || "";   } catch(e){}
+try { customAddins     = JSON.parse(localStorage.getItem("mya_custom_addins")   || "{}"); } catch(e){}
+try { proteinOverrides = JSON.parse(localStorage.getItem("mya_protein_swaps")   || "{}"); } catch(e){}
+
+var PROTEIN_OPTIONS = ["Beef (85/15)","Ground Turkey","Ground Chicken","Pork Loin","Sardines (canned)","Salmon (canned)"];
 
 // Merge any USDA-sourced custom ingredients into the live ADDINS table
 (function mergeCustomAddins(){
@@ -498,6 +506,24 @@ function renderPlan(){
 }
 
 // ── CALENDAR ──────────────────────────────────────────────────────────────────
+function getProteinOverride(ds,slot){
+  return proteinOverrides[ds+"_"+slot] || null;
+}
+
+function getEffectiveMeal(ds,slot,scheduledMeal){
+  if(!scheduledMeal) return scheduledMeal;
+  var override=getProteinOverride(ds,slot);
+  if(!override) return scheduledMeal;
+  return { protein:override, starch:scheduledMeal.starch, veg:scheduledMeal.veg, organ:scheduledMeal.organ };
+}
+
+function setProteinOverride(ds,slot,proteinName){
+  var key=ds+"_"+slot;
+  if(proteinName){ proteinOverrides[key]=proteinName; }
+  else { delete proteinOverrides[key]; }
+  try{localStorage.setItem("mya_protein_swaps",JSON.stringify(proteinOverrides));}catch(e){}
+}
+
 function isFishMeal(proteinName){
   return proteinName==="Sardines (canned)" || proteinName==="Salmon (canned)";
 }
@@ -544,9 +570,11 @@ function renderCalendarPage(){
   document.getElementById("page-calendar").innerHTML = html;
 }
 
-function buildCard(ds,slot,label,m){
+function buildCard(ds,slot,label,scheduledMeal){
   var key=ds+"_"+slot;
   var fed=!!fedLog[key];
+  var override=getProteinOverride(ds,slot);
+  var m=getEffectiveMeal(ds,slot,scheduledMeal);
 
   var h='<div class="meal-card'+(fed?" fed":"")+'">'
     +'<div class="slot-label">'+label+'</div>';
@@ -554,6 +582,7 @@ function buildCard(ds,slot,label,m){
   if(m){
     var isFish=isFishMeal(m.protein);
     h+='<div class="meal-protein">'+m.protein+' <span class="oz-tag">8 oz</span></div>';
+    if(override) h+='<div class="swap-note">&#8646; swapped from '+scheduledMeal.protein+'</div>';
     h+='<div class="recipe-list">'
       +'<div class="recipe-line"><span>'+m.starch+'</span><span class="oz-tag">2.5 oz</span></div>'
       +'<div class="recipe-line"><span>'+m.veg+'</span><span class="oz-tag">2.5 oz</span></div>';
@@ -563,12 +592,57 @@ function buildCard(ds,slot,label,m){
     for(var i=0;i<supps.length;i++) h+='<div class="recipe-line supp"><span>'+supps[i]+'</span></div>';
     h+='</div>';
 
+    h+='<button class="addins-btn" onclick="openSwapModal(\''+ds+'\',\''+slot+'\')">&#8646; Swap Protein</button>';
     h+='<button class="fed-btn'+(fed?" active":"")+'" onclick="toggleFed(\''+key+'\')">'
       +(fed?"&#10003; Fed!":"Mark Fed")+'</button>';
   } else {
     h+='<div style="color:#3a3a4a;font-size:11px;margin-top:8px">No meal scheduled</div>';
   }
   return h+'</div>';
+}
+
+function openSwapModal(ds,slot){
+  var dow=getDOW(curYear,curMonth,curDay);
+  var wk=getWK(curYear,curMonth,curDay);
+  var dn=DAYS_OF_WEEK[dow];
+  var dm=(WEEKS[wk]||{})[dn]||{};
+  var scheduledMeal=dm[slot];
+  if(!scheduledMeal) return;
+  var current=getProteinOverride(ds,slot);
+
+  var rows="";
+  for(var i=0;i<PROTEIN_OPTIONS.length;i++){
+    var p=PROTEIN_OPTIONS[i];
+    var isScheduled=(p===scheduledMeal.protein);
+    var isActive=current ? (p===current) : isScheduled;
+    rows+='<div class="swap-option'+(isActive?" active":"")+'" onclick="applyProteinSwap(\''+ds+'\',\''+slot+'\',\''+p+'\')">'
+      +p+(isScheduled?' <span class="swap-sched-tag">scheduled</span>':'')
+      +'</div>';
+  }
+
+  document.getElementById("modal-root").innerHTML=
+    '<div class="overlay" id="mbg"><div class="modal">'
+    +'<div class="modal-head"><div class="modal-title">Swap Protein</div>'
+    +'<button class="modal-close" onclick="closeModal()">&#10005;</button></div>'
+    +'<div class="modal-hint">Scheduled: '+scheduledMeal.protein+'. Pick what you actually fed:</div>'
+    +rows
+    +(current ? '<button class="usda-modal-toggle" onclick="applyProteinSwap(\''+ds+'\',\''+slot+'\',null)" style="margin-top:14px">Reset to scheduled (remove swap)</button>' : '')
+    +'</div></div>';
+
+  document.getElementById("mbg").addEventListener("click",function(e){if(e.target===this)closeModal();});
+}
+
+function applyProteinSwap(ds,slot,proteinName){
+  var dow=getDOW(curYear,curMonth,curDay);
+  var wk=getWK(curYear,curMonth,curDay);
+  var dn=DAYS_OF_WEEK[dow];
+  var dm=(WEEKS[wk]||{})[dn]||{};
+  var scheduledMeal=dm[slot];
+  // if they picked the scheduled protein itself, that's the same as no override
+  if(proteinName===scheduledMeal.protein) proteinName=null;
+  setProteinOverride(ds,slot,proteinName);
+  closeModal();
+  renderCalendarPage();
 }
 
 function buildAdditionalItemsBox(ds){
@@ -744,7 +818,8 @@ function renderNutrition(){
       var key=ds+"_"+slots[s];
       if(fedLog[key]){
         cnt++; dayHasFed=true;
-        var n=calcMeal(dm[slots[s]]);
+        var effMeal=getEffectiveMeal(ds,slots[s],dm[slots[s]]);
+        var n=calcMeal(effMeal);
         for(var j=0;j<KEYS.length;j++) sum[KEYS[j]]+=n[KEYS[j]];
       }
     }
@@ -1252,8 +1327,10 @@ function buildWeekView(){
 
     var amText, pmText;
     if(histMode==="actual"){
-      amText = amFed ? ("&#10003; AM: "+(dm.am?dm.am.protein:"&mdash;")) : "AM: Not fed";
-      pmText = pmFed ? ("&#10003; PM: "+(dm.pm?dm.pm.protein:"&mdash;")) : "PM: Not fed";
+      var amEff=getEffectiveMeal(ds,"am",dm.am);
+      var pmEff=getEffectiveMeal(ds,"pm",dm.pm);
+      amText = amFed ? ("&#10003; AM: "+(amEff?amEff.protein:"&mdash;")) : "AM: Not fed";
+      pmText = pmFed ? ("&#10003; PM: "+(pmEff?pmEff.protein:"&mdash;")) : "PM: Not fed";
     } else {
       amText = (amFed?"&#10003; ":"")+"AM: "+(dm.am?dm.am.protein:"&mdash;");
       pmText = (pmFed?"&#10003; ":"")+"PM: "+(dm.pm?dm.pm.protein:"&mdash;");
@@ -1338,25 +1415,31 @@ function openDayDetail(ds){
     +'<div class="modal-head"><div class="modal-title">'+label+'</div>'
     +'<button class="modal-close" onclick="closeDayDetail()">&#10005;</button></div>';
 
-  // AM block — in "actual" mode, hide scheduled details unless it was actually fed
+  // AM block — in "actual" mode, hide scheduled details unless it was actually fed, and show the swap if any
   var amDetail;
+  var amEff=getEffectiveMeal(ds,"am",dm.am);
   if(!dm.am){
     amDetail='<div class="dd-detail">No meal scheduled</div>';
   } else if(histMode==="actual" && !amFed){
     amDetail='<div class="dd-detail">Not fed</div>';
   } else {
-    amDetail='<div class="dd-protein">'+dm.am.protein+'</div><div class="dd-detail">'+dm.am.starch+' &middot; '+dm.am.veg+(dm.am.organ?' &middot; '+dm.am.organ:'')+'</div>';
+    var amShown=(histMode==="actual")?amEff:dm.am;
+    var amSwapNote=(histMode==="actual" && getProteinOverride(ds,"am")) ? '<div class="swap-note">&#8646; swapped from '+dm.am.protein+'</div>' : '';
+    amDetail='<div class="dd-protein">'+amShown.protein+'</div>'+amSwapNote+'<div class="dd-detail">'+amShown.starch+' &middot; '+amShown.veg+(amShown.organ?' &middot; '+amShown.organ:'')+'</div>';
   }
   html+='<div class="day-detail-meal"><div class="dd-label">AM'+(amFed?" &#10003; Fed":" &mdash; not fed")+'</div>'+amDetail+'</div>';
 
   // PM block — same logic
   var pmDetail;
+  var pmEff=getEffectiveMeal(ds,"pm",dm.pm);
   if(!dm.pm){
     pmDetail='<div class="dd-detail">No meal scheduled</div>';
   } else if(histMode==="actual" && !pmFed){
     pmDetail='<div class="dd-detail">Not fed</div>';
   } else {
-    pmDetail='<div class="dd-protein">'+dm.pm.protein+'</div><div class="dd-detail">'+dm.pm.starch+' &middot; '+dm.pm.veg+(dm.pm.organ?' &middot; '+dm.pm.organ:'')+'</div>';
+    var pmShown=(histMode==="actual")?pmEff:dm.pm;
+    var pmSwapNote=(histMode==="actual" && getProteinOverride(ds,"pm")) ? '<div class="swap-note">&#8646; swapped from '+dm.pm.protein+'</div>' : '';
+    pmDetail='<div class="dd-protein">'+pmShown.protein+'</div>'+pmSwapNote+'<div class="dd-detail">'+pmShown.starch+' &middot; '+pmShown.veg+(pmShown.organ?' &middot; '+pmShown.organ:'')+'</div>';
   }
   html+='<div class="day-detail-meal"><div class="dd-label">PM'+(pmFed?" &#10003; Fed":" &mdash; not fed")+'</div>'+pmDetail+'</div>';
 

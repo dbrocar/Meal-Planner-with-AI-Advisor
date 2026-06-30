@@ -1,369 +1,220 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mya's Meal Planner</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1720; color: #f0e6d3; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mya's Meal Planner 🐾</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:#0f1720;color:#e8dcc8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;}
+.header{background:#0a1018;padding:14px 20px 0;border-bottom:1px solid rgba(200,147,58,0.25);position:sticky;top:0;z-index:100;}
+.header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.app-title{font-size:19px;font-weight:700;color:#c8933a;}
+.pet-name-input{display:block;width:100%;background:transparent;border:none;border-bottom:1px solid rgba(200,147,58,0.3);color:#c8933a;font-size:13px;font-weight:600;padding:3px 0 5px;margin-bottom:4px;}
+.pet-name-input::placeholder{color:#666;opacity:0.7;}
+.app-sub{font-size:10px;color:#666;margin-bottom:10px;}
+.tabs{display:flex;}
+.tab{flex:1;padding:9px 2px;font-size:11px;font-weight:600;color:#666;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;letter-spacing:.2px;}
+.tab.active{color:#c8933a;border-bottom-color:#c8933a;}
+.page{padding:14px;padding-bottom:80px;display:none;}
+.page.active{display:block;}
+.section-title{font-size:13px;font-weight:700;color:#c8933a;margin-bottom:10px;margin-top:4px;}
+.summary-box{background:#1a2535;border-radius:12px;padding:13px;margin-bottom:10px;}
+.fed-btn{width:100%;margin-top:7px;padding:8px 0;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:#c8933a;color:#0f1720;}
+.fed-btn.active{background:#4caf50;color:#fff;}
+.meal-card{background:#1a2535;border:1px solid rgba(200,147,58,0.2);border-radius:12px;padding:11px;margin-bottom:8px;}
+.meal-card.fed{background:#1a2f1a;border-color:rgba(76,175,80,0.4);}
+.meal-protein{font-size:13px;font-weight:700;margin-bottom:3px;}
+.meal-details{font-size:10px;color:#888;line-height:1.6;}
+</style>
 </head>
 <body>
-    <div id="root"></div>
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
 
-        // AAFCO Requirements
-        const AAFCO = {
-            protein:     { label: "Protein",           unit: "g",    min: 45.0,   max: 999, color: "#4a9fd4" },
-            fat:         { label: "Fat",               unit: "g",    min: 13.8,   max: 55,  color: "#e8b55a" },
-            calcium:     { label: "Calcium",           unit: "mg",   min: 1250,   max: 2500, color: "#7ecb9f" },
-            phosphorus:  { label: "Phosphorus",        unit: "mg",   min: 1000,   max: 2000, color: "#b07ecb" },
-            potassium:   { label: "Potassium",         unit: "mg",   min: 1500,   max: 999, color: "#a0d4c8" },
-            sodium:      { label: "Sodium",            unit: "mg",   min: 500,    max: 3000, color: "#d4a8b0" },
-            chloride:    { label: "Chloride",          unit: "mg",   min: 750,    max: 999, color: "#b0d4a8" },
-            magnesium:   { label: "Magnesium",         unit: "mg",   min: 160,    max: 999, color: "#d4b8a0" },
-            iron:        { label: "Iron",              unit: "mg",   min: 7.5,    max: 100, color: "#e07b54" },
-            copper:      { label: "Copper",            unit: "mg",   min: 3.8,    max: 25,  color: "#c86a3a" },
-            zinc:        { label: "Zinc",              unit: "mg",   min: 15.0,   max: 100, color: "#c8933a" },
-            iodine:      { label: "Iodine",            unit: "mg",   min: 1.1,    max: 11,  color: "#d4a043" },
-            selenium:    { label: "Selenium",          unit: "mcg",  min: 110,    max: 400, color: "#d4a560" },
-            omega3:      { label: "Omega-3",           unit: "mg",   min: 110,    max: 999, color: "#4ad4c8" },
-            omega6:      { label: "Omega-6",           unit: "g",    min: 11.0,   max: 999, color: "#4ac8d4" },
-            vitA:        { label: "Vitamin A",         unit: "IU",   min: 1250,   max: 40000, color: "#d4a843" },
-            vitD:        { label: "Vitamin D",         unit: "IU",   min: 136,    max: 1800, color: "#f0c060" },
-            vitE:        { label: "Vitamin E",         unit: "IU",   min: 7.5,    max: 1000, color: "#88c070" },
-            vitK:        { label: "Vitamin K",         unit: "mcg",  min: 130,    max: 999, color: "#70c090" },
-            thiamine:    { label: "Thiamine (B1)",     unit: "mg",   min: 1.1,    max: 999, color: "#a0a8d0" },
-            riboflavin:  { label: "Riboflavin (B2)",   unit: "mg",   min: 2.2,    max: 999, color: "#a8a0d0" },
-            niacin:      { label: "Niacin (B3)",       unit: "mg",   min: 11.4,   max: 999, color: "#b0a0d0" },
-            pantothenic: { label: "Pantothenic Acid",  unit: "mg",   min: 7.0,    max: 999, color: "#b8a0d0" },
-            pyridoxine:  { label: "Pyridoxine (B6)",   unit: "mg",   min: 1.2,    max: 999, color: "#c0a0d0" },
-            folate:      { label: "Folate",            unit: "mcg",  min: 220,    max: 999, color: "#c8a0d0" },
-            vitB12:      { label: "Vitamin B12",       unit: "mcg",  min: 7.0,    max: 999, color: "#d0a0d0" },
-            choline:     { label: "Choline",           unit: "mg",   min: 1700,   max: 999, color: "#d0a8c0" },
-        };
+<div class="header">
+  <div class="header-top">
+    <div style="width:100%">
+      <div class="app-title">Mya's Meal Planner 🐾</div>
+      <input type="text" id="petNameInput" class="pet-name-input" placeholder="Your dog's name" oninput="savePetName(this.value)">
+      <div class="app-sub" id="appSub">60 lb · Moderate activity · ~1,335 kcal/day</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" id="tab-calendar" onclick="showTab('calendar')">📅 Calendar</button>
+    <button class="tab" id="tab-nutrition" onclick="showTab('nutrition')">📊 Nutrition</button>
+  </div>
+</div>
 
-        // Nutrients per oz
-        const NUTRIENTS_PER_OZ = {
-            Beef:     { protein: 5.6, fat: 3.2, calcium: 4,   phosphorus: 56,  potassium: 85, sodium: 60, chloride: 95, magnesium: 7, iron: 0.75, copper: 0.05, zinc: 1.6,  iodine: 0.003, selenium: 27, omega3: 18, omega6: 120, vitA: 0,    vitD: 1,    vitE: 0.07, vitK: 1.8, thiamine: 0.04, riboflavin: 0.12, niacin: 2.4, pantothenic: 0.3, pyridoxine: 0.3, folate: 5, vitB12: 0.8, choline: 90 },
-            Turkey:   { protein: 6.4, fat: 1.0, calcium: 6,   phosphorus: 58,  potassium: 110, sodium: 50, chloride: 80, magnesium: 6, iron: 0.50, copper: 0.04, zinc: 0.9,  iodine: 0.002, selenium: 30, omega3: 14, omega6: 95, vitA: 0,    vitD: 0,    vitE: 0.06, vitK: 0.6, thiamine: 0.05, riboflavin: 0.14, niacin: 3.2, pantothenic: 0.4, pyridoxine: 0.4, folate: 6, vitB12: 0.4, choline: 75 },
-            Lamb:     { protein: 5.3, fat: 4.2, calcium: 5,   phosphorus: 52,  potassium: 95, sodium: 55, chloride: 88, magnesium: 8, iron: 0.65, copper: 0.08, zinc: 1.3,  iodine: 0.004, selenium: 32, omega3: 22, omega6: 140, vitA: 0,    vitD: 1,    vitE: 0.05, vitK: 1.5, thiamine: 0.06, riboflavin: 0.18, niacin: 2.8, pantothenic: 0.35, pyridoxine: 0.25, folate: 4, vitB12: 0.9, choline: 85 },
-            Pork:     { protein: 5.5, fat: 3.8, calcium: 4,   phosphorus: 60,  potassium: 100, sodium: 52, chloride: 85, magnesium: 6, iron: 0.30, copper: 0.06, zinc: 0.9,  iodine: 0.003, selenium: 28, omega3: 15, omega6: 110, vitA: 0,    vitD: 1,    vitE: 0.08, vitK: 0.8, thiamine: 0.50, riboflavin: 0.16, niacin: 3.6, pantothenic: 0.45, pyridoxine: 0.35, folate: 3, vitB12: 0.5, choline: 82 },
-            Chicken:  { protein: 5.4, fat: 2.5, calcium: 5,   phosphorus: 54,  potassium: 105, sodium: 65, chloride: 90, magnesium: 5, iron: 0.35, copper: 0.04, zinc: 0.6,  iodine: 0.002, selenium: 25, omega3: 18, omega6: 105, vitA: 12,   vitD: 1,    vitE: 0.07, vitK: 0.5, thiamine: 0.05, riboflavin: 0.09, niacin: 4.2, pantothenic: 0.65, pyridoxine: 0.45, folate: 5, vitB12: 0.3, choline: 70 },
-            Sardines: { protein: 5.8, fat: 2.8, calcium: 110, phosphorus: 140, potassium: 160, sodium: 420, chloride: 580, magnesium: 32, iron: 0.85, copper: 0.08, zinc: 0.6,  iodine: 0.020, selenium: 45, omega3: 580, omega6: 280, vitA: 18,   vitD: 40,   vitE: 0.22, vitK: 0.3, thiamine: 0.02, riboflavin: 0.08, niacin: 2.2, pantothenic: 0.10, pyridoxine: 0.08, folate: 5, vitB12: 2.8, choline: 110 },
-            Salmon:   { protein: 5.6, fat: 3.8, calcium: 9,   phosphorus: 99,  potassium: 150, sodium: 55, chloride: 88, magnesium: 28, iron: 0.25, copper: 0.06, zinc: 0.35, iodine: 0.014, selenium: 36, omega3: 680, omega6: 260, vitA: 12,   vitD: 103,  vitE: 0.50, vitK: 0.2, thiamine: 0.08, riboflavin: 0.12, niacin: 4.5, pantothenic: 0.75, pyridoxine: 0.50, folate: 7, vitB12: 2.6, choline: 95 },
-            Heart:    { protein: 4.8, fat: 2.2, calcium: 3,   phosphorus: 55,  potassium: 70, sodium: 48, chloride: 75, magnesium: 4, iron: 1.40, copper: 0.20, zinc: 0.9,  iodine: 0.005, selenium: 24, omega3: 20, omega6: 130, vitA: 0,    vitD: 0,    vitE: 0.09, vitK: 1.2, thiamine: 0.08, riboflavin: 0.40, niacin: 3.8, pantothenic: 1.2, pyridoxine: 0.25, folate: 3, vitB12: 5.0, choline: 120 },
-            Liver:    { protein: 5.0, fat: 1.2, calcium: 3,   phosphorus: 95,  potassium: 65, sodium: 55, chloride: 80, magnesium: 5, iron: 2.40, copper: 1.50, zinc: 1.5,  iodine: 0.008, selenium: 38, omega3: 12, omega6: 95, vitA: 4900, vitD: 12,   vitE: 0.25, vitK: 8.5, thiamine: 0.12, riboflavin: 1.50, niacin: 7.2, pantothenic: 4.5, pyridoxine: 0.75, folate: 240, vitB12: 18.0, choline: 355 },
-            "Green beans": { protein: 0.2, fat: 0.0, calcium: 11, phosphorus: 8,  potassium: 75, sodium: 2, chloride: 3, magnesium: 7, iron: 0.14, copper: 0.03, zinc: 0.06, iodine: 0.001, selenium: 0.6, omega3: 8, omega6: 15, vitA: 42, vitD: 0, vitE: 0.06, vitK: 50, thiamine: 0.03, riboflavin: 0.05, niacin: 0.3, pantothenic: 0.08, pyridoxine: 0.04, folate: 17, vitB12: 0, choline: 15 },
-            "Zucchini": { protein: 0.2, fat: 0.0, calcium: 5,  phosphorus: 14, potassium: 110, sodium: 5, chloride: 8, magnesium: 8, iron: 0.10, copper: 0.03, zinc: 0.08, iodine: 0.001, selenium: 0.4, omega3: 20, omega6: 25, vitA: 6, vitD: 0, vitE: 0.06, vitK: 12, thiamine: 0.03, riboflavin: 0.04, niacin: 0.3, pantothenic: 0.10, pyridoxine: 0.08, folate: 15, vitB12: 0, choline: 8 },
-            "Carrots": { protein: 0.2, fat: 0.0, calcium: 10, phosphorus: 11, potassium: 95, sodium: 42, chloride: 65, magnesium: 6, iron: 0.10, copper: 0.03, zinc: 0.07, iodine: 0.002, selenium: 0.8, omega3: 5, omega6: 20, vitA: 284, vitD: 0, vitE: 0.05, vitK: 8, thiamine: 0.04, riboflavin: 0.03, niacin: 0.4, pantothenic: 0.15, pyridoxine: 0.10, folate: 6, vitB12: 0, choline: 6 },
-            "Pumpkin": { protein: 0.2, fat: 0.0, calcium: 7,  phosphorus: 11, potassium: 112, sodium: 1, chloride: 2, magnesium: 8, iron: 0.10, copper: 0.08, zinc: 0.07, iodine: 0.001, selenium: 0.3, omega3: 3, omega6: 25, vitA: 130, vitD: 0, vitE: 0.05, vitK: 2, thiamine: 0.03, riboflavin: 0.05, niacin: 0.4, pantothenic: 0.25, pyridoxine: 0.06, folate: 5, vitB12: 0, choline: 7 },
-            "Quinoa": { protein: 1.0, fat: 0.3, calcium: 8,   phosphorus: 55,  potassium: 44, sodium: 2, chloride: 3, magnesium: 45, iron: 0.35, copper: 0.12, zinc: 0.30, iodine: 0, selenium: 1.2, omega3: 0, omega6: 45, vitA: 0,    vitD: 0,    vitE: 0.04, vitK: 0.3, thiamine: 0.08, riboflavin: 0.06, niacin: 0.4, pantothenic: 0.27, pyridoxine: 0.12, folate: 79, vitB12: 0, choline: 25 },
-            "Oats": { protein: 1.0, fat: 0.5, calcium: 5,   phosphorus: 50,  potassium: 38, sodium: 1, chloride: 2, magnesium: 38, iron: 0.35, copper: 0.08, zinc: 0.28, iodine: 0, selenium: 1.8, omega3: 0, omega6: 100, vitA: 0,    vitD: 0,    vitE: 0.03, vitK: 0.2, thiamine: 0.12, riboflavin: 0.08, niacin: 0.3, pantothenic: 0.50, pyridoxine: 0.08, folate: 32, vitB12: 0, choline: 30 },
-        };
+<div class="page active" id="page-calendar"></div>
+<div class="page" id="page-nutrition"></div>
 
-        const RECIPES = {
-            basic: {
-                name: "Basic Protein Bowl",
-                base: "Protein (8 oz) + Starch (2.5 oz) + Veg (2.5 oz) + Organ (0.5 oz, optional)",
-                supplements: [
-                    "½ tsp eggshell powder (calcium 800mg)",
-                    "1 pinch iodized salt (iodine)",
-                    "¼ tsp psyllium husk powder (fiber)",
-                    "¼ tsp mixed tocopherols (vitamin E)",
-                    "¼ tsp fresh ginger (digestive)",
-                    "1 pinch fresh spearmint (breath)",
-                    "1½ tbsp reserved broth/water",
-                ],
-                optional: [
-                    "½ tsp fish oil (omega-3)",
-                    "½ tsp coconut oil (MCTs)",
-                    "½ tbsp bone broth (minerals)",
-                ]
-            },
-            enriched: {
-                name: "Enriched Protein Bowl",
-                base: "Protein (8 oz) + Starch (2.5 oz) + Veg (2.5 oz) + Organ (0.5 oz)",
-                supplements: [
-                    "½ tsp eggshell powder",
-                    "1 pinch iodized salt",
-                    "¼ tsp psyllium husk powder",
-                    "¼ tsp mixed tocopherols",
-                    "1 tbsp bone broth (collagen)",
-                    "¼ tsp fish oil (omega-3, EPA+DHA)",
-                    "⅛ tsp fresh ginger",
-                    "1 pinch fresh spearmint",
-                ],
-                optional: [
-                    "¼ tsp cod liver oil (vitamin D+A)",
-                    "½ oz blueberries (antioxidants)",
-                    "½ tsp sunflower oil (linoleic acid)",
-                ]
-            }
-        };
+<script>
+var AAFCO = {
+    protein:     { label: "Protein",           unit: "g",    min: 45.0,   max: 999 },
+    fat:         { label: "Fat",               unit: "g",    min: 13.8,   max: 55 },
+    calcium:     { label: "Calcium",           unit: "mg",   min: 1250,   max: 2500 },
+    phosphorus:  { label: "Phosphorus",        unit: "mg",   min: 1000,   max: 2000 },
+};
 
-        const MEAL_DATA = {
-            rotation_weeks: [
-                {
-                    week: 1,
-                    days: [
-                        { day: "Mon", am: { protein:"Beef",    starch:"Quinoa", vegetable:"Green beans", organ:"Heart" }, pm: { protein:"Turkey", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Tue", am: { protein:"Beef",    starch:"Quinoa", vegetable:"Green beans", organ:"Heart" }, pm: { protein:"Turkey", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Wed", am: { protein:"Beef",    starch:"Quinoa", vegetable:"Green beans", organ:"Heart" }, pm: { protein:"Turkey", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Thu", am: { protein:"Sardines",starch:"Quinoa", vegetable:"Green beans", organ:null }, pm: { protein:"Turkey", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Fri", am: { protein:"Beef",    starch:"Quinoa", vegetable:"Green beans", organ:"Heart" }, pm: { protein:"Turkey", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Sat", am: { protein:"Beef",    starch:"Quinoa", vegetable:"Green beans", organ:"Heart" }, pm: { protein:"Turkey", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Sun", am: { protein:"Sardines",starch:"Quinoa", vegetable:"Zucchini", organ:null }, pm: { protein:"Turkey", starch:"Quinoa", vegetable:"Zucchini", organ:null }},
-                    ]
-                },
-                {
-                    week: 2,
-                    days: [
-                        { day: "Mon", am: { protein:"Lamb",   starch:"Oats", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Pork", starch:"Oats", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Tue", am: { protein:"Lamb",   starch:"Oats", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Pork", starch:"Oats", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Wed", am: { protein:"Lamb",   starch:"Oats", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Pork", starch:"Oats", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Thu", am: { protein:"Salmon", starch:"Oats", vegetable:"Green beans", organ:null }, pm: { protein:"Pork", starch:"Oats", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Fri", am: { protein:"Lamb",   starch:"Oats", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Pork", starch:"Oats", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Sat", am: { protein:"Lamb",   starch:"Oats", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Pork", starch:"Oats", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Sun", am: { protein:"Salmon", starch:"Oats", vegetable:"Green beans", organ:null }, pm: { protein:"Pork", starch:"Oats", vegetable:"Carrots", organ:null }},
-                    ]
-                },
-                {
-                    week: 3,
-                    days: [
-                        { day: "Mon", am: { protein:"Turkey",  starch:"Quinoa", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Chicken", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Tue", am: { protein:"Turkey",  starch:"Quinoa", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Chicken", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Wed", am: { protein:"Turkey",  starch:"Quinoa", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Chicken", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Thu", am: { protein:"Sardines",starch:"Quinoa", vegetable:"Green beans", organ:null }, pm: { protein:"Chicken", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Fri", am: { protein:"Turkey",  starch:"Quinoa", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Chicken", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Sat", am: { protein:"Turkey",  starch:"Quinoa", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Chicken", starch:"Quinoa", vegetable:"Zucchini", organ:"Liver" }},
-                        { day: "Sun", am: { protein:"Sardines",starch:"Quinoa", vegetable:"Green beans", organ:null }, pm: { protein:"Chicken", starch:"Quinoa", vegetable:"Zucchini", organ:null }},
-                    ]
-                },
-                {
-                    week: 4,
-                    days: [
-                        { day: "Mon", am: { protein:"Pork",  starch:"Quinoa", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Beef", starch:"Quinoa", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Tue", am: { protein:"Pork",  starch:"Quinoa", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Beef", starch:"Quinoa", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Wed", am: { protein:"Pork",  starch:"Quinoa", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Beef", starch:"Quinoa", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Thu", am: { protein:"Salmon",starch:"Quinoa", vegetable:"Pumpkin", organ:null }, pm: { protein:"Beef", starch:"Quinoa", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Fri", am: { protein:"Pork",  starch:"Quinoa", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Beef", starch:"Quinoa", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Sat", am: { protein:"Pork",  starch:"Quinoa", vegetable:"Carrots", organ:"Heart" }, pm: { protein:"Beef", starch:"Quinoa", vegetable:"Carrots", organ:"Liver" }},
-                        { day: "Sun", am: { protein:"Salmon",starch:"Quinoa", vegetable:"Pumpkin", organ:null }, pm: { protein:"Beef", starch:"Quinoa", vegetable:"Carrots", organ:null }},
-                    ]
-                },
-            ]
-        };
+var FOODS = {
+    "Beef":      { protein: 5.6, fat: 3.2, calcium: 4,   phosphorus: 56 },
+    "Turkey":    { protein: 6.4, fat: 1.0, calcium: 6,   phosphorus: 58 },
+    "Chicken":   { protein: 5.4, fat: 2.5, calcium: 5,   phosphorus: 54 },
+    "Sardines":  { protein: 5.8, fat: 2.8, calcium: 110, phosphorus: 140 },
+    "Salmon":    { protein: 5.6, fat: 3.8, calcium: 9,   phosphorus: 99 },
+    "Quinoa":    { protein: 1.0, fat: 0.3, calcium: 8,   phosphorus: 55 },
+    "Oats":      { protein: 1.0, fat: 0.5, calcium: 5,   phosphorus: 50 },
+    "Green Beans": { protein: 0.2, fat: 0.0, calcium: 11, phosphorus: 8 },
+    "Carrots":   { protein: 0.2, fat: 0.0, calcium: 10, phosphorus: 11 },
+};
 
-        function calcMealNutrients(meal) {
-            const totals = {};
-            Object.keys(AAFCO).forEach(k => totals[k] = 0);
-            
-            const add = (ingredient, oz) => {
-                const n = NUTRIENTS_PER_OZ[ingredient];
-                if (!n) return;
-                Object.keys(totals).forEach(k => totals[k] += (n[k] || 0) * oz);
-            };
-            
-            add(meal.protein, 8);
-            add(meal.starch, 2.5);
-            add(meal.vegetable, 2.5);
-            if (meal.organ) add(meal.organ, 0.5);
-            
-            totals.calcium += 800;
-            totals.vitE += 15;
-            totals.iodine += 0.05;
-            
-            return totals;
+var MEAL_ROTATION = [
+    { day: "Mon", am: { protein: "Beef", starch: "Quinoa", veg: "Green Beans" }, pm: { protein: "Turkey", starch: "Quinoa", veg: "Carrots" } },
+    { day: "Tue", am: { protein: "Beef", starch: "Oats", veg: "Green Beans" }, pm: { protein: "Chicken", starch: "Oats", veg: "Carrots" } },
+    { day: "Wed", am: { protein: "Sardines", starch: "Quinoa", veg: "Green Beans" }, pm: { protein: "Turkey", starch: "Quinoa", veg: "Carrots" } },
+    { day: "Thu", am: { protein: "Salmon", starch: "Oats", veg: "Carrots" }, pm: { protein: "Chicken", starch: "Oats", veg: "Green Beans" } },
+    { day: "Fri", am: { protein: "Beef", starch: "Quinoa", veg: "Green Beans" }, pm: { protein: "Turkey", starch: "Quinoa", veg: "Carrots" } },
+    { day: "Sat", am: { protein: "Chicken", starch: "Oats", veg: "Green Beans" }, pm: { protein: "Beef", starch: "Quinoa", veg: "Carrots" } },
+    { day: "Sun", am: { protein: "Sardines", starch: "Quinoa", veg: "Carrots" }, pm: { protein: "Salmon", starch: "Oats", veg: "Green Beans" } },
+];
+
+var fedLog = {};
+var petName = "";
+
+try { fedLog = JSON.parse(localStorage.getItem("mya_fed") || "{}"); } catch(e){}
+try { petName = localStorage.getItem("mya_pet_name") || ""; } catch(e){}
+
+if (document.getElementById("petNameInput")) {
+    document.getElementById("petNameInput").value = petName;
+}
+
+function savePetName(name){
+    petName = name;
+    try { localStorage.setItem("mya_pet_name", name); } catch(e){}
+}
+
+function showTab(name){
+    var tabs = ["calendar", "nutrition"];
+    for(var i = 0; i < tabs.length; i++){
+        var page = document.getElementById("page-" + tabs[i]);
+        var tab = document.getElementById("tab-" + tabs[i]);
+        if(tabs[i] === name){
+            page.className = "page active";
+            tab.className = "tab active";
+        } else {
+            page.className = "page";
+            tab.className = "tab";
         }
+    }
+    if(name === "calendar") renderCalendar();
+    if(name === "nutrition") renderNutrition();
+}
 
-        function NutrientBar({ value, min, max, color, label, unit }) {
-            const belowMin = value < min;
-            const aboveMax = value > max;
-            let status = "✓";
-            let barColor = color;
-            if (belowMin) { status = "⚠ LOW"; barColor = "#e07b54"; }
-            if (aboveMax) { status = "⚠ HIGH"; barColor = "#c8933a"; }
-            const pct = Math.min((value / max) * 100, 100);
-            
-            return (
-                <div style={{ marginBottom: 9 }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom: 2, fontSize: 10 }}>
-                        <span style={{ color: "#9aabb8", fontWeight: 600 }}>{label}</span>
-                        <span style={{ color: belowMin || aboveMax ? barColor : "#7ecb9f", fontWeight: 700, fontSize: 9 }}>
-                            {value >= 10 ? Math.round(value) : value.toFixed(1)} / {min >= 10 ? Math.round(min) : min.toFixed(1)} {unit} {status}
-                        </span>
-                    </div>
-                    <div style={{ background: "#1a2535", borderRadius: 3, height: 5, overflow:"hidden" }}>
-                        <div style={{ width: `${pct}%`, height:"100%", background: barColor, borderRadius: 3 }} />
-                    </div>
-                </div>
-            );
-        }
+function getMealForDay(dayIdx){
+    return MEAL_ROTATION[dayIdx % 7];
+}
 
-        function App() {
-            const [currentDate, setCurrentDate] = useState(new Date());
-            const [activeTab, setActiveTab] = useState("calendar");
-            const [fedLog, setFedLog] = useState(() => {
-                const stored = localStorage.getItem("mya-fed-log");
-                return stored ? JSON.parse(stored) : {};
-            });
+function toggleFed(dateStr, slot){
+    var key = dateStr + "_" + slot;
+    fedLog[key] = !fedLog[key];
+    try { localStorage.setItem("mya_fed", JSON.stringify(fedLog)); } catch(e){}
+    renderCalendar();
+}
 
-            const saveFed = (newLog) => {
-                setFedLog(newLog);
-                localStorage.setItem("mya-fed-log", JSON.stringify(newLog));
-            };
+function calcMealNutrients(meal, oz){
+    oz = oz || 8;
+    var totals = {};
+    for(var k in AAFCO) totals[k] = 0;
+    
+    var proto = FOODS[meal];
+    if(!proto) return totals;
+    
+    for(var nutrient in proto){
+        totals[nutrient] = (proto[nutrient] || 0) * oz;
+    }
+    totals.calcium += 800;
+    return totals;
+}
 
-            const getDateStr = (d) => d.toISOString().split('T')[0];
-            const dateStr = getDateStr(currentDate);
-            const dayOfYear = Math.floor((currentDate - new Date(currentDate.getFullYear(), 0, 0)) / 86400000);
-            const rotationDay = dayOfYear % 28;
-            const weekIdx = Math.floor(rotationDay / 7);
-            const dayIdx = rotationDay % 7;
-            const day = MEAL_DATA.rotation_weeks[weekIdx].days[dayIdx];
+function formatDate(date){
+    var days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return days[date.getDay()] + ", " + months[date.getMonth()] + " " + date.getDate();
+}
 
-            const { totals, mealsFed } = useMemo(() => {
-                const t = {};
-                Object.keys(AAFCO).forEach(k => t[k] = 0);
-                let mf = 0;
-                for (let i = -30; i <= 0; i++) {
-                    const d = new Date(currentDate);
-                    d.setDate(d.getDate() + i);
-                    const ds = getDateStr(d);
-                    ["am","pm"].forEach(slot => {
-                        if (fedLog[`${ds}-${slot}`]) {
-                            mf++;
-                            const doy = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
-                            const rday = doy % 28;
-                            const widx = Math.floor(rday / 7);
-                            const didx = rday % 7;
-                            const m = MEAL_DATA.rotation_weeks[widx].days[didx][slot];
-                            const n = calcMealNutrients(m);
-                            Object.keys(t).forEach(k => t[k] += n[k]);
-                        }
-                    });
-                }
-                return { totals: t, mealsFed: mf };
-            }, [fedLog, currentDate]);
+function dateToString(date){
+    var y = date.getFullYear();
+    var m = date.getMonth() + 1;
+    var d = date.getDate();
+    return y + "-" + (m < 10 ? "0" + m : m) + "-" + (d < 10 ? "0" + d : d);
+}
 
-            const days = mealsFed / 2 || 1;
-            const dailyAvg = {};
-            Object.keys(AAFCO).forEach(k => dailyAvg[k] = totals[k] / days);
+function renderCalendar(){
+    var today = new Date();
+    var dateStr = dateToString(today);
+    var dayIdx = today.getDay();
+    var meal = getMealForDay(dayIdx);
+    
+    var html = '<div style="padding:14px">';
+    html += '<div style="background:#1a2535;border-radius:10px;padding:12px;margin-bottom:12px">';
+    html += '<div style="font-size:14px;font-weight:700;margin-bottom:8px">' + formatDate(today) + '</div>';
+    html += '<div style="font-size:10px;color:#666">' + meal.day + '</div>';
+    html += '</div>';
+    
+    // AM meal
+    var amKey = dateStr + "_am";
+    var amFed = !!fedLog[amKey];
+    html += '<div class="meal-card' + (amFed ? ' fed' : '') + '">';
+    html += '<div style="font-size:11px;color:#999;margin-bottom:6px">AM MEAL</div>';
+    html += '<div class="meal-protein">' + meal.am.protein + '</div>';
+    html += '<div class="meal-details">';
+    html += meal.am.starch + ' · ' + meal.am.veg;
+    html += '</div>';
+    html += '<button class="fed-btn' + (amFed ? ' active' : '') + '" onclick="toggleFed(\'' + dateStr + '\',\'am\')">' + (amFed ? '✓ Fed' : 'Mark Fed') + '</button>';
+    html += '</div>';
+    
+    // PM meal
+    var pmKey = dateStr + "_pm";
+    var pmFed = !!fedLog[pmKey];
+    html += '<div class="meal-card' + (pmFed ? ' fed' : '') + '">';
+    html += '<div style="font-size:11px;color:#999;margin-bottom:6px">PM MEAL</div>';
+    html += '<div class="meal-protein">' + meal.pm.protein + '</div>';
+    html += '<div class="meal-details">';
+    html += meal.pm.starch + ' · ' + meal.pm.veg;
+    html += '</div>';
+    html += '<button class="fed-btn' + (pmFed ? ' active' : '') + '" onclick="toggleFed(\'' + dateStr + '\',\'pm\')">' + (pmFed ? '✓ Fed' : 'Mark Fed') + '</button>';
+    html += '</div>';
+    
+    html += '</div>';
+    document.getElementById("page-calendar").innerHTML = html;
+}
 
-            return (
-                <div style={{ minHeight:"100vh", background:"#0f1720", color:"#f0e6d3", paddingBottom:40 }}>
-                    <div style={{ background:"linear-gradient(135deg,#1a2535,#0f1720)", borderBottom:"1px solid #2a3a4a", padding:"16px 14px 12px", position:"sticky", top:0, zIndex:100 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-                            <div style={{ width:40,height:40,borderRadius:"50%", background:"linear-gradient(135deg,#c8933a,#e8b55a)", display:"flex",alignItems:"center",justifyContent:"center", fontSize:22 }}>🐾</div>
-                            <div>
-                                <div style={{ fontSize:18, fontWeight:800, color:"#f5ead8" }}>Mya's Meal Planner</div>
-                                <div style={{ fontSize:10, color:"#7a8d9e" }}>60 lb · 1,350 kcal · Wk {weekIdx + 1}</div>
-                            </div>
-                        </div>
-                        <div style={{ display:"flex", gap:6 }}>
-                            {[["calendar","📅 Calendar"],["nutrition","📊 Nutrition"],["recipes","👨‍🍳 Recipes"]].map(([k,l]) => (
-                                <button key={k} onClick={() => setActiveTab(k)} style={{ flex:1, padding:"6px 0", borderRadius:6, fontSize:11, border: activeTab===k ? "2px solid #c8933a" : "2px solid #2a3a4a", background: activeTab===k ? "rgba(200,147,58,0.15)" : "#141e2b", color: activeTab===k ? "#c8933a" : "#6b7a8d", fontWeight: activeTab===k ? 800 : 500, cursor:"pointer" }}>{l}</button>
-                            ))}
-                        </div>
-                    </div>
+function renderNutrition(){
+    var html = '<div style="padding:14px">';
+    html += '<div class="summary-box">';
+    html += '<div style="font-size:13px;font-weight:700;margin-bottom:4px">Recent Nutrition</div>';
+    html += '<div style="font-size:10px;color:#888">Track your dog\'s nutrition over time</div>';
+    html += '</div>';
+    
+    html += '<div style="background:#1a2535;border-radius:10px;padding:12px">';
+    html += '<div style="font-size:11px;font-weight:700;color:#c8933a;margin-bottom:10px">AAFCO Targets</div>';
+    
+    for(var k in AAFCO){
+        var meta = AAFCO[k];
+        var range = meta.min + " - " + meta.max + " " + meta.unit;
+        html += '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)">';
+        html += '<div style="font-size:10px;color:#bbb">' + meta.label + '</div>';
+        html += '<div style="font-size:9px;color:#888;margin-top:2px">' + range + '</div>';
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    html += '</div>';
+    document.getElementById("page-nutrition").innerHTML = html;
+}
 
-                    {activeTab === "calendar" && (
-                        <div style={{ padding:"12px 14px 0" }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-                                <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()-1); setCurrentDate(d); }} style={{ padding:"4px 10px", borderRadius:6, border:"1px solid #2a3a4a", background:"#141e2b", color:"#6b7a8d", cursor:"pointer", fontSize:11, fontWeight:700 }}>← Prev</button>
-                                <div style={{ flex:1, textAlign:"center", fontSize:14, fontWeight:800, color:"#f0e6d3" }}>
-                                    {currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                                </div>
-                                <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()+1); setCurrentDate(d); }} style={{ padding:"4px 10px", borderRadius:6, border:"1px solid #2a3a4a", background:"#141e2b", color:"#6b7a8d", cursor:"pointer", fontSize:11, fontWeight:700 }}>Next →</button>
-                            </div>
+// Initialize
+showTab("calendar");
+</script>
 
-                            <div style={{ background:"#1a2535", border:"1px solid #2a3a4a", borderRadius:10, padding:"10px 12px", marginBottom:12 }}>
-                                <div style={{ fontSize:11, fontWeight:700, color:"#4a6fa5", marginBottom:8 }}>Week {weekIdx + 1} · {day.day}</div>
-                                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                                    {["am","pm"].map(slot => {
-                                        const meal = day[slot];
-                                        const isChecked = !!fedLog[`${dateStr}-${slot}`];
-                                        return (
-                                            <div key={slot} onClick={() => saveFed({...fedLog, [`${dateStr}-${slot}`]: !isChecked})} style={{ background: isChecked ? (slot==="am" ? "#1a2e1a" : "#1a1e2e") : (slot==="am" ? "#1e2a38" : "#1a2030"), border: `2px solid ${isChecked ? "#7ecb9f" : (slot==="am" ? "#c8933a44" : "#4a6fa544")}`, borderRadius: 10, padding:"10px 12px", cursor:"pointer", transition:"all 0.18s", userSelect:"none" }}>
-                                                {isChecked && <div style={{ fontSize:12, color:"#7ecb9f", fontWeight:900, marginBottom:4 }}>✓ Fed</div>}
-                                                <div style={{ fontSize:13, fontWeight:700, color:"#f0e6d3", marginBottom:4 }}>{meal.protein}</div>
-                                                <div style={{ fontSize:9, color:"#8a9bb0", lineHeight:1.6 }}>
-                                                    <div>{meal.starch} · 2.5 oz</div>
-                                                    <div>{meal.vegetable} · 2.5 oz</div>
-                                                    {meal.organ && <div>{meal.organ} · 0.5 oz</div>}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === "nutrition" && (
-                        <div style={{ padding:"12px 14px 0" }}>
-                            {mealsFed === 0 ? (
-                                <div style={{ textAlign:"center", padding:"60px 20px", color:"#4a6fa5" }}>
-                                    <div style={{ fontSize:40, marginBottom:12 }}>🐾</div>
-                                    <div style={{ fontSize:14, color:"#8a9bb0" }}>Mark meals as fed to see nutrition</div>
-                                </div>
-                            ) : (
-                                <>
-                                    <div style={{ background:"#1a2535", border:"1px solid #2a3a4a", borderRadius:10, padding:"10px 12px", marginBottom:12 }}>
-                                        <div style={{ fontSize:12, fontWeight:800, color:"#f0e6d3", marginBottom:4 }}>30-Day Nutrition</div>
-                                        <div style={{ fontSize:10, color:"#6b7a8d" }}>{mealsFed} meals · ~{Math.round(mealsFed/2)} days</div>
-                                    </div>
-
-                                    <div style={{ background:"#141e2b", border:"1px solid #2a3a4a", borderRadius:10, padding:"12px 12px 8px" }}>
-                                        <div style={{ fontSize:10, fontWeight:700, color:"#4a6fa5", marginBottom:10, textTransform:"uppercase" }}>All 28 Nutrients</div>
-                                        {Object.entries(AAFCO).map(([k, meta]) => (
-                                            <NutrientBar key={k} value={dailyAvg[k]} min={meta.min} max={meta.max} color={meta.color} label={meta.label} unit={meta.unit} />
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === "recipes" && (
-                        <div style={{ padding:"12px 14px 0" }}>
-                            {Object.entries(RECIPES).map(([k, recipe]) => (
-                                <div key={k} style={{ background:"#1a2535", border:"1px solid #2a3a4a", borderRadius:10, padding:12, marginBottom:12 }}>
-                                    <div style={{ fontSize:12, fontWeight:800, color:"#c8933a", marginBottom:8 }}>{recipe.name}</div>
-                                    <div style={{ fontSize:10, color:"#8a9bb0", marginBottom:8 }}>
-                                        <div style={{ fontWeight:700, color:"#7ecb9f", marginBottom:4 }}>Base (16 oz):</div>
-                                        <div>{recipe.base}</div>
-                                    </div>
-                                    <div style={{ fontSize:10, color:"#8a9bb0", marginBottom:8 }}>
-                                        <div style={{ fontWeight:700, color:"#7ecb9f", marginBottom:4 }}>Supplements:</div>
-                                        {recipe.supplements.map((s, i) => <div key={i}>• {s}</div>)}
-                                    </div>
-                                </div>
-                            ))}
-
-                            <div style={{ background:"#141e2b", border:"2px solid #e07b54", borderRadius:10, padding:12, marginTop:16, marginBottom:12 }}>
-                                <div style={{ fontSize:11, fontWeight:800, color:"#e07b54", marginBottom:8, textTransform:"uppercase" }}>⚠️ Disclaimer</div>
-                                <div style={{ fontSize:10, color:"#8a9bb0", lineHeight:1.7 }}>
-                                    This meal planner is for informational purposes only. <strong style={{color:"#f0e6d3"}}>I assume no responsibility for any injury or illness to your pet.</strong> Always consult a veterinarian before diet changes.
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <div style={{ padding:"16px 14px", textAlign:"center", fontSize:9, color:"#4a6fa5", borderTop:"1px solid #2a3a4a", marginTop:20 }}>
-                        ⚠️ Nutritional information only. Always consult a veterinarian. No liability assumed.
-                    </div>
-                </div>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
 </body>
 </html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mya's Meal Planner 🐾</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:#0f1720;color:#e8dcc8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;}
+.header{background:#0a1018;padding:14px 20px 0;border-bottom:1px solid rgba(200,147,58,0.25);position:sticky;top:0;z-index:100;}
+.header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.app-title{font-size:19px;font-weight:700;color:#c8933a;}
+.pet-name-input{display:block;width:100%;background:transparent;border:none;border-bottom:1px solid rgba(200,147,58,0.3);color:#c8933a;font-size:13px;font-weight:600;padding:3px 0 5px;margin-bottom:4px;}
+.pet-name-input::placeholder{color:#666;opacity:0.7;}
+.app-sub{font-size:10px;color:#666;margin-bottom:10px;}
+.tabs{display:flex;}
+.tab{flex:1;padding:9px 2px;font-size:11px;font-weight:600;color:#666;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;letter-spacing:.2px;}
+.tab.active{color:#c8933a;border-bottom-color:#c8933a;}
+.page{padding:14px;padding-bottom:80px;display:none;}
+.page.active{display:block;}
+.section-title{font-size:13px;font-weight:700;color:#c8933a;margin-bottom:10px;margin-top:4px;}
+.summary-box{background:#1a2535;border-radius:12px;padding:13px;margin-bottom:10px;}
+.fed-btn{width:100%;margin-top:7px;padding:8px 0;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;background:#c8933a;color:#0f1720;}
+.fed-btn.active{background:#4caf50;color:#fff;}
+.meal-card{background:#1a2535;border:1px solid rgba(200,147,58,0.2);border-radius:12px;padding:11px;margin-bottom:8px;}
+.meal-card.fed{background:#1a2f1a;border-color:rgba(76,175,80,0.4);}
+.meal-protein{font-size:13px;font-weight:700;margin-bottom:3px;}
+.meal-details{font-size:10px;color:#888;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div style="width:100%">
+      <div class="app-title">Mya's Meal Planner 🐾</div>
+      <input type="text" id="petNameInput" class="pet-name-input" placeholder="Your dog's name" oninput="savePetName(this.value)">
+      <div class="app-sub" id="appSub">60 lb · Moderate activity · ~1,335 kcal/day</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" id="tab-calendar" onclick="showTab('calendar')">📅 Calendar</button>
+    <button class="tab" id="tab-nutrition" onclick="showTab('nutrition')">📊 Nutrition</button>
+  </div>
+</div>
+
+<div class="page active" id="page-calendar"></div>
+<div class="page" id="page-nutrition"></div>
+
+<script>
+var AAFCO = {
+    protein:     { label: "Protein",           unit: "g",    min: 45.0,   max: 999 },
+    fat:         { label: "Fat",               unit: "g",    min: 13.8,   max: 55 },
+    calcium:     { label: "Calcium",           unit: "mg",   min: 1250,   max: 2500 },
+    phosphorus:  { label: "Phosphorus",        unit: "mg",   min: 1000,   max: 2000 },
+};
+
+var FOODS = {
+    "Beef":      { protein: 5.6, fat: 3.2, calcium: 4,   phosphorus: 56 },
+    "Turkey":    { protein: 6.4, fat: 1.0, calcium: 6,   phosphorus: 58 },
+    "Chicken":   { protein: 5.4, fat: 2.5, calcium: 5,   phosphorus: 54 },
+    "Sardines":  { protein: 5.8, fat: 2.8, calcium: 110, phosphorus: 140 },
+    "Salmon":    { protein: 5.6, fat: 3.8, calcium: 9,   phosphorus: 99 },
+    "Quinoa":    { protein: 1.0, fat: 0.3, calcium: 8,   phosphorus: 55 },
+    "Oats":      { protein: 1.0, fat: 0.5, calcium: 5,   phosphorus: 50 },
+    "Green Beans": { protein: 0.2, fat: 0.0, calcium: 11, phosphorus: 8 },
+    "Carrots":   { protein: 0.2, fat: 0.0, calcium: 10, phosphorus: 11 },
+};
+
+var MEAL_ROTATION = [
+    { day: "Mon", am: { protein: "Beef", starch: "Quinoa", veg: "Green Beans" }, pm: { protein: "Turkey", starch: "Quinoa", veg: "Carrots" } },
+    { day: "Tue", am: { protein: "Beef", starch: "Oats", veg: "Green Beans" }, pm: { protein: "Chicken", starch: "Oats", veg: "Carrots" } },
+    { day: "Wed", am: { protein: "Sardines", starch: "Quinoa", veg: "Green Beans" }, pm: { protein: "Turkey", starch: "Quinoa", veg: "Carrots" } },
+    { day: "Thu", am: { protein: "Salmon", starch: "Oats", veg: "Carrots" }, pm: { protein: "Chicken", starch: "Oats", veg: "Green Beans" } },
+    { day: "Fri", am: { protein: "Beef", starch: "Quinoa", veg: "Green Beans" }, pm: { protein: "Turkey", starch: "Quinoa", veg: "Carrots" } },
+    { day: "Sat", am: { protein: "Chicken", starch: "Oats", veg: "Green Beans" }, pm: { protein: "Beef", starch: "Quinoa", veg: "Carrots" } },
+    { day: "Sun", am: { protein: "Sardines", starch: "Quinoa", veg: "Carrots" }, pm: { protein: "Salmon", starch: "Oats", veg: "Green Beans" } },
+];
+
+var fedLog = {};
+var petName = "";
+
+try { fedLog = JSON.parse(localStorage.getItem("mya_fed") || "{}"); } catch(e){}
+try { petName = localStorage.getItem("mya_pet_name") || ""; } catch(e){}
+
+if (document.getElementById("petNameInput")) {
+    document.getElementById("petNameInput").value = petName;
+}
+
+function savePetName(name){
+    petName = name;
+    try { localStorage.setItem("mya_pet_name", name); } catch(e){}
+}
+
+function showTab(name){
+    var tabs = ["calendar", "nutrition"];
+    for(var i = 0; i < tabs.length; i++){
+        var page = document.getElementById("page-" + tabs[i]);
+        var tab = document.getElementById("tab-" + tabs[i]);
+        if(tabs[i] === name){
+            page.className = "page active";
+            tab.className = "tab active";
+        } else {
+            page.className = "page";
+            tab.className = "tab";
+        }
+    }
+    if(name === "calendar") renderCalendar();
+    if(name === "nutrition") renderNutrition();
+}
+
+function getMealForDay(dayIdx){
+    return MEAL_ROTATION[dayIdx % 7];
+}
+
+function toggleFed(dateStr, slot){
+    var key = dateStr + "_" + slot;
+    fedLog[key] = !fedLog[key];
+    try { localStorage.setItem("mya_fed", JSON.stringify(fedLog)); } catch(e){}
+    renderCalendar();
+}
+
+function calcMealNutrients(meal, oz){
+    oz = oz || 8;
+    var totals = {};
+    for(var k in AAFCO) totals[k] = 0;
+    
+    var proto = FOODS[meal];
+    if(!proto) return totals;
+    
+    for(var nutrient in proto){
+        totals[nutrient] = (proto[nutrient] || 0) * oz;
+    }
+    totals.calcium += 800;
+    return totals;
+}
+
+function formatDate(date){
+    var days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return days[date.getDay()] + ", " + months[date.getMonth()] + " " + date.getDate();
+}
+
+function dateToString(date){
+    var y = date.getFullYear();
+    var m = date.getMonth() + 1;
+    var d = date.getDate();
+    return y + "-" + (m < 10 ? "0" + m : m) + "-" + (d < 10 ? "0" + d : d);
+}
+
+function renderCalendar(){
+    var today = new Date();
+    var dateStr = dateToString(today);
+    var dayIdx = today.getDay();
+    var meal = getMealForDay(dayIdx);
+    
+    var html = '<div style="padding:14px">';
+    html += '<div style="background:#1a2535;border-radius:10px;padding:12px;margin-bottom:12px">';
+    html += '<div style="font-size:14px;font-weight:700;margin-bottom:8px">' + formatDate(today) + '</div>';
+    html += '<div style="font-size:10px;color:#666">' + meal.day + '</div>';
+    html += '</div>';
+    
+    // AM meal
+    var amKey = dateStr + "_am";
+    var amFed = !!fedLog[amKey];
+    html += '<div class="meal-card' + (amFed ? ' fed' : '') + '">';
+    html += '<div style="font-size:11px;color:#999;margin-bottom:6px">AM MEAL</div>';
+    html += '<div class="meal-protein">' + meal.am.protein + '</div>';
+    html += '<div class="meal-details">';
+    html += meal.am.starch + ' · ' + meal.am.veg;
+    html += '</div>';
+    html += '<button class="fed-btn' + (amFed ? ' active' : '') + '" onclick="toggleFed(\'' + dateStr + '\',\'am\')">' + (amFed ? '✓ Fed' : 'Mark Fed') + '</button>';
+    html += '</div>';
+    
+    // PM meal
+    var pmKey = dateStr + "_pm";
+    var pmFed = !!fedLog[pmKey];
+    html += '<div class="meal-card' + (pmFed ? ' fed' : '') + '">';
+    html += '<div style="font-size:11px;color:#999;margin-bottom:6px">PM MEAL</div>';
+    html += '<div class="meal-protein">' + meal.pm.protein + '</div>';
+    html += '<div class="meal-details">';
+    html += meal.pm.starch + ' · ' + meal.pm.veg;
+    html += '</div>';
+    html += '<button class="fed-btn' + (pmFed ? ' active' : '') + '" onclick="toggleFed(\'' + dateStr + '\',\'pm\')">' + (pmFed ? '✓ Fed' : 'Mark Fed') + '</button>';
+    html += '</div>';
+    
+    html += '</div>';
+    document.getElementById("page-calendar").innerHTML = html;
+}
+
+function renderNutrition(){
+    var html = '<div style="padding:14px">';
+    html += '<div class="summary-box">';
+    html += '<div style="font-size:13px;font-weight:700;margin-bottom:4px">Recent Nutrition</div>';
+    html += '<div style="font-size:10px;color:#888">Track your dog\'s nutrition over time</div>';
+    html += '</div>';
+    
+    html += '<div style="background:#1a2535;border-radius:10px;padding:12px">';
+    html += '<div style="font-size:11px;font-weight:700;color:#c8933a;margin-bottom:10px">AAFCO Targets</div>';
+    
+    for(var k in AAFCO){
+        var meta = AAFCO[k];
+        var range = meta.min + " - " + meta.max + " " + meta.unit;
+        html += '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)">';
+        html += '<div style="font-size:10px;color:#bbb">' + meta.label + '</div>';
+        html += '<div style="font-size:9px;color:#888;margin-top:2px">' + range + '</div>';
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    html += '</div>';
+    document.getElementById("page-nutrition").innerHTML = html;
+}
+
+// Initialize
+showTab("calendar");
+</script>
+
+</body>
+</html>

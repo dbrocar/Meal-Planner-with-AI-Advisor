@@ -1,1 +1,364 @@
+function generateAdvisorAnswer(q){
+  var name = petName || "your dog";
+  var lower = q.toLowerCase();
+  var pronoun = petName ? "she" : "they";
+  var possessive = petName ? "her" : "their";
 
+  // ── SYMPTOM / MEDICAL ──
+  var symptomWords = ["vomit","throwing up","diarrhea","lethargic","limping","seizure","blood","bleeding",
+    "won't eat","not eating","collapsed","pain","swollen","fever","tremor","difficulty breathing",
+    "choking","poisoned","allergic","rash","hives","swelling","cough","sneeze","runny nose","eye discharge",
+    "weakness","trouble walking","stagger","confused","disoriented","pale gums","yellow gums","lethargy"];
+  for(var s=0;s<symptomWords.length;s++){
+    if(lower.indexOf(symptomWords[s])!==-1){
+      return "⚠️ That sounds like something a veterinarian needs to look at directly. If "+name+" is showing symptoms like this, please contact your vet immediately — especially if it's sudden, severe, or "+possessive+" behavior seems off. This advisor can help with feeding questions, but it cannot diagnose medical conditions.";
+    }
+  }
+
+  // ── FOOD SAFETY ──
+  var safety = checkFoodSafety(q);
+  if(safety){
+    if(safety.status==="avoid"){
+      return "❌ "+safety.name+" should NOT be fed to "+name+". "+(safety.reason||"Toxic to dogs.")+" If "+possessive+" already eaten some, contact your vet or an animal poison control line right away, especially if it was a larger amount.";
+    }
+    if(safety.status==="limit"){
+      return "⚠️ "+safety.name+" can be fed to "+name+" only in careful moderation. "+(safety.reason||"")+" A small amount occasionally is generally fine, but it shouldn't be a regular part of "+possessive+" diet.";
+    }
+    return "✅ "+safety.name+" is safe for "+name+" in normal amounts. "+(safety.reason?safety.reason+".":"")+" Still, everything in moderation — treats and extras should stay under about 10% of "+possessive+" daily calories.";
+  }
+
+  // ── BREED / SIZE ──
+  if(/what breed|what kind of dog|is she a|is (he|she)|mixed breed/.test(lower)){
+    var weight = Math.round(_calcState.weight||60);
+    var size = weight < 25 ? "small" : (weight < 55 ? "medium" : "large");
+    return "🐕 "+name+" is currently set up as a "+size+" dog at "+weight+" lb. If you'd like to specify "+possessive+" actual breed, you can add it in the health notes section of the Dog Profile — this helps with breed-specific feeding considerations.";
+  }
+
+  // ── AGE / LIFE STAGE ──
+  if(/age|puppy|senior|years? old|months? old/.test(lower)){
+    var activity = _calcState.activityLabel || "not specified";
+    var suggestion = "";
+    if(/puppy/.test(lower)) suggestion = " Puppies have different nutritional needs — they typically need more frequent meals and higher calorie density than adults. Talk to your vet about a growth formula.";
+    if(/senior|older/.test(lower)) suggestion = " Senior dogs may need adjusted protein levels, joint support, and easier-to-digest ingredients — always worth a vet check for older dogs.";
+    return "🐾 "+name+" is set up with activity level: "+activity+". "+suggestion+" You can adjust the weight and activity settings in the calculator on this tab to match "+possessive+" life stage.";
+  }
+
+  // ── ALLERGIES / SENSITIVITIES ──
+  if(/allerg|sensitive|intolerant|react|itchy|skin|hot spot|ear infection|digest/.test(lower)){
+    var healthNotes = "";
+    var allergies = "";
+    try{ healthNotes = localStorage.getItem("mya_dog_health_notes") || ""; }catch(e){}
+    try{ allergies = localStorage.getItem("mya_dog_allergies") || ""; }catch(e){}
+    if(allergies){
+      return "📋 Based on the allergy notes you've saved for "+name+": \""+escapeHtml(allergies)+"\". Common food allergens in dogs include beef, chicken, dairy, wheat, soy, and corn. If you suspect a food allergy, a veterinary elimination diet is the most reliable way to identify triggers — this advisor can help track what "+possessive+" been eating, but can't diagnose allergies.";
+    }
+    return "🔍 No allergy notes saved for "+name+" yet. You can add them in the Dog Profile section on this tab. Common food allergens in dogs include beef, chicken, dairy, wheat, soy, and corn. A veterinary elimination diet is the most reliable way to identify food sensitivities.";
+  }
+
+  // ── CALCIUM:PHOSPHORUS RATIO ──
+  if(/calcium.*phosphorus|phosphorus.*calcium|ca[\s:\/]*p\b|ca:p/.test(lower)){
+    var la = last7DayAverages();
+    if(la.mealCount===0) return "📊 No meals logged in the last 7 days — mark some meals as fed in the Feeding Schedule tab, then ask again for a Ca:P analysis.";
+    var caP = la.avg.phosphorus>0 ? (la.avg.calcium/la.avg.phosphorus) : 0;
+    var ok = caP>=1.0 && caP<=2.0;
+    var advice = ok ? "✅ This is within the AAFCO-recommended range of 1:1 to 2:1 — looking good!" : "⚠️ This is outside the recommended 1:1–2:1 range — check that the eggshell powder (calcium) is being included consistently, and review the Nutrition tab for a full breakdown.";
+    return "📊 Over the last "+la.dayCount+" day"+(la.dayCount===1?"":"s")+", "+name+"'s calcium-to-phosphorus ratio has averaged "+caP.toFixed(2)+":1. "+advice+" The ideal ratio is about 1.2–1.4:1 for adult dogs.";
+  }
+
+  // ── SPECIFIC NUTRIENT STATUS ──
+  var nutrientKeys = Object.keys(NUTRIENT_ALIASES).sort(function(a,b){return b.length-a.length;});
+  for(var n=0;n<nutrientKeys.length;n++){
+    if(lower.indexOf(nutrientKeys[n])!==-1){
+      var aafcoKey = NUTRIENT_ALIASES[nutrientKeys[n]];
+      var cfg = null;
+      for(var c=0;c<AAFCO.length;c++){ if(AAFCO[c].k===aafcoKey){ cfg=AAFCO[c]; break; } }
+      if(!cfg) break;
+      var la2 = last7DayAverages();
+      if(la2.mealCount===0) return "📊 No meals logged in the last 7 days — mark some meals as fed, then ask again about "+cfg.label+".";
+      var v = la2.avg[cfg.k];
+      var status = v<cfg.min ? "⚠️ running LOW" : (cfg.max<999 && v>cfg.max ? "⚠️ running HIGH" : "✅ on target");
+      var disp = v>=10 ? Math.round(v) : v.toFixed(2);
+      var range = cfg.max<9000 ? (cfg.min+"–"+cfg.max) : (cfg.min+"+");
+      var sources = _nutSources && _nutSources[aafcoKey] ? Object.keys(_nutSources[aafcoKey]) : [];
+      var sourceText = sources.length ? " The main contributors are: "+sources.slice(0,3).join(", ")+(sources.length>3?" and others.":".") : " Tap the Nutrition tab for a detailed breakdown.";
+      return "📊 "+name+"'s "+cfg.label.toLowerCase()+" has averaged "+disp+" "+cfg.unit+"/day over the last "+la2.dayCount+" day"+(la2.dayCount===1?"":"s")+" — that's "+status+" against the AAFCO target of "+range+" "+cfg.unit+". "+sourceText;
+    }
+  }
+
+  // ── CALORIE / PORTION ──
+  if(/how much|calorie|portion|feeding amount|oz per meal|ounces|grams|should i feed|how many meals|meal frequency/.test(lower)){
+    var mer = _calcState.mer || 1334;
+    var ozDay = _calcState.ozPerDay || 31.6;
+    var ozMeal = _calcState.ozPerMeal || 15.8;
+    var activity = _calcState.activityLabel || "activity level not set";
+    var mealsPerDay = /3 meals|three meals|more than 2/.test(lower) ? 3 : 2;
+    var perMeal = ozDay / mealsPerDay;
+    var response = "🐾 "+name+" is set up for about "+Math.round(mer)+" kcal/day ("+activity+"), which works out to roughly "+ozDay.toFixed(1)+" oz/day split across 2 meals — about "+ozMeal.toFixed(1)+" oz per meal.";
+    if(mealsPerDay===3) response += " If you prefer 3 meals/day, that would be about "+perMeal.toFixed(1)+" oz per meal.";
+    response += " You can adjust weight and activity level in the calculator further down this tab if anything's changed.";
+    return response;
+  }
+
+  // ── TODAY'S MEAL ──
+  if(/today|tonight|dinner|breakfast|lunch|what.*eating|what.*for (am|pm)|current meal|scheduled/.test(lower)){
+    try{
+      var dow = getDOW(curYear,curMonth,curDay);
+      var wk = getWK(curYear,curMonth,curDay);
+      var dn = DAYS_OF_WEEK[dow];
+      var dm = (WEEKS[wk]||{})[dn]||{};
+      var parts = [];
+      if(dm.am) parts.push("AM: "+dm.am.protein+", "+dm.am.starch+", "+dm.am.veg+(dm.am.organ?", "+dm.am.organ:""));
+      if(dm.pm) parts.push("PM: "+dm.pm.protein+", "+dm.pm.starch+", "+dm.pm.veg+(dm.pm.organ?", "+dm.pm.organ:""));
+      if(parts.length===0) return "📅 No meal is scheduled today — check the Feeding Schedule tab to set one up.";
+      var altNote = (dn==="Thu"||dn==="Sun") ? " (Thu & Sun are variety/alt protein days)" : "";
+      return "📅 Today's rotation for "+name+": "+parts.join(" • ")+"."+altNote+" You can swap any ingredient using the buttons on each meal card.";
+    }catch(e){ return "📅 Couldn't read today's rotation — check the Feeding Schedule tab directly."; }
+  }
+
+  // ── WEEKLY ROTATION ──
+  if(/week rotation|4 week|rotation schedule|what.*next week|meal rotation/.test(lower)){
+    try{
+      var weekNum = /week (\d)/.test(lower) ? parseInt(RegExp.$1) : 1;
+      if(weekNum<1 || weekNum>4) weekNum = 1;
+      var wkDays = WEEKS[weekNum] || WEEKS[1] || {};
+      var summary = "📅 Week "+weekNum+" rotation:<br>";
+      var dayOrder = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+      for(var d=0; d<dayOrder.length; d++){
+        var day = dayOrder[d];
+        var meals = wkDays[day] || {};
+        var am = meals.am ? meals.am.protein : "—";
+        var pm = meals.pm ? meals.pm.protein : "—";
+        summary += day+": AM "+am.replace(" (canned)","").replace(" (85/15)","")+" | PM "+pm.replace(" (canned)","").replace(" (85/15)","")+"<br>";
+      }
+      summary += "🔄 This rotation repeats every 4 weeks. You can change proteins in the Dog Profile section.";
+      return summary;
+    }catch(e){ return "📅 Couldn't read the rotation schedule — check the Plan tab."; }
+  }
+
+  // ── WEIGHT / ACTIVITY ──
+  if(/weight|how much does .*weigh|activity level|exercise|active|calories|mer|rer/.test(lower)){
+    var w = Math.round(_calcState.weight||60);
+    var act = _calcState.activityLabel || "activity level not set";
+    var merVal = Math.round(_calcState.mer||1334);
+    var rerVal = Math.round(_calcState.rer||834);
+    return "⚖️ "+name+" is set up at "+w+" lb, "+act+". Daily calorie target: ~"+merVal+" kcal (MER), with a resting energy (RER) of ~"+rerVal+" kcal. You can update these anytime in the calculator on this tab — it recalculates automatically.";
+  }
+
+  // ── PRODUCTS / TREATS ──
+  if(/treat|product|recipe box|homemade|biscuit|cookie|snack/.test(lower)){
+    var pnames = Object.keys(customProducts).map(function(id){ return customProducts[id].name; });
+    if(pnames.length===0) return "🍪 No products saved yet in the Recipe Box. Add one from the Utilities section — it'll show up as a quick pick whenever you log a meal.";
+    var treatAdvice = "🍪 Saved in the Recipe Box: "+pnames.join(", ")+". Treats should be logged as 'Additional Items' when you feed them, so their nutrition counts toward the daily totals. Try to keep treats under 10% of daily calories.";
+    return treatAdvice;
+  }
+
+  // ── VEGETABLES ──
+  if(/vegetable|veggie|green bean|carrot|spinach|peas|zucchini|bell pepper|pumpkin|broccoli|cucumber|celery/.test(lower)){
+    var vegAdvice = "🥬 Safe vegetables for dogs include: green beans, zucchini, bell peppers, carrots (steamed), peas, romaine lettuce, cucumber, and celery. Feed about 2-3 oz per meal as part of a balanced diet.";
+    if(/spinach/.test(lower)) vegAdvice += " ⚠️ Spinach should be fed in tiny amounts only — it's high in oxalates.";
+    if(/broccoli/.test(lower)) vegAdvice += " ⚠️ Broccoli is safe in small amounts (under 10% of the meal) but can cause gas.";
+    if(/pumpkin/.test(lower)) vegAdvice += " 🎃 Pumpkin is great for digestion! Use plain canned pumpkin (not pie filling), about 1-2 tbsp per meal.";
+    if(/corn/.test(lower)) vegAdvice += " 🌽 Corn is safe but has limited nutritional value — it's more of a filler than a beneficial vegetable.";
+    if(/celery/.test(lower)) vegAdvice += " 🌿 Celery is safe and low-calorie — chop it small to avoid choking.";
+    return vegAdvice;
+  }
+
+  // ── FRUITS ──
+  if(/fruit|apple|banana|blueberry|strawberry|watermelon|pear|mango|cantaloupe|berry|raspberry|blackberry/.test(lower)){
+    var fruitAdvice = "🍎 Safe fruits for dogs: bananas, blueberries, strawberries, watermelon (seedless), cantaloupe, mango (no pit), pears (no seeds), raspberries (small amounts).";
+    if(/apple/.test(lower)) fruitAdvice += " 🍏 Apples are safe but remove the seeds (they contain trace cyanide).";
+    if(/grape/.test(lower)) fruitAdvice += " 🚫 Grapes and raisins are TOXIC to dogs — can cause kidney failure. Never feed them.";
+    if(/raspberry/.test(lower)) fruitAdvice += " 🍇 Raspberries contain natural xylitol — only in small amounts.";
+    fruitAdvice += " 🍬 All fruits should be fed in moderation as treats — they contain natural sugars. Keep treats under 10% of daily calories.";
+    return fruitAdvice;
+  }
+
+  // ── PROTEIN ──
+  if(/protein|meat|beef|chicken|turkey|pork|lamb|veal|bison|duck|fish|sardine|salmon|meat source/.test(lower)){
+    var proteinList = selectedProteins.length ? selectedProteins : PROTEIN_CATALOG.map(function(c){return c.name;});
+    var active = proteinList.join(", ");
+    var advice = "🥩 Your active proteins: "+active+". ";
+    if(/fish|sardine|salmon/.test(lower)) advice += "🐟 Fish proteins (sardines, salmon) are rich in Omega-3s — they're used on Thu & Sun as variety days in the rotation.";
+    if(/chicken/.test(lower)) advice += " 🐔 Chicken is lean and widely tolerated, but some dogs have sensitivities to it.";
+    if(/beef/.test(lower)) advice += " 🐄 Beef is nutrient-dense — 85/15 ground beef is a good balance of protein and fat.";
+    if(/pork/.test(lower)) advice += " 🐖 Pork loin is lean and a good alternative protein for rotation.";
+    if(/lamb/.test(lower)) advice += " 🐑 Lamb is a great novel protein for dogs with common meat allergies.";
+    if(/duck/.test(lower)) advice += " 🦆 Duck is rich and flavorful — great for rotation but higher in fat.";
+    advice += " You can change the active proteins in the Dog Profile section.";
+    return advice;
+  }
+
+  // ── ORGAN MEATS ──
+  if(/organ|liver|heart|kidney|offal|giblet/.test(lower)){
+    var organAdvice = "❤️ Organ meats are nutrient-dense and should be included in a balanced homemade diet:";
+    organAdvice += "<br>• Liver — 2-3x/week (max 3.5 oz total/week, very high in Vitamin A)";
+    organAdvice += "<br>• Heart — 1-2x/week (muscle meat, no strict limit)";
+    organAdvice += "<br>• Kidney — 1x/week (high in B12 and selenium)";
+    organAdvice += "<br>Organ meats are typically 0.5 oz per meal. They freeze well in small cubes for easy portioning.";
+    return organAdvice;
+  }
+
+  // ── STARCH / CARBS ──
+  if(/starch|carbs|carbohydrate|quinoa|oats|sweet potato|rice|potato|pasta|bread/.test(lower)){
+    var starchAdvice = "🌾 Starch options for dogs (2-3 oz/meal):";
+    starchAdvice += "<br>• Quinoa — complete protein, rinse before cooking";
+    starchAdvice += "<br>• Oats — good for beta-glucans, cook 10-15 min";
+    starchAdvice += "<br>• Sweet potato — high in beta-carotene, bake or steam";
+    starchAdvice += "<br>• White rice — occasional only, low nutrient value";
+    if(/potato/.test(lower)) starchAdvice += " 🥔 Potatoes must be cooked — raw potato contains solanine, which is toxic.";
+    return starchAdvice;
+  }
+
+  // ── SUPPLEMENTS ──
+  if(/supplement|eggshell|calcium|iodine|salt|psyllium|fiber|herb cube|broth|vitamin|mineral|tocopherol/.test(lower)){
+    var suppAdvice = "⚙️ Daily constants — every meal includes:";
+    suppAdvice += "<br>• ½ tsp eggshell powder → calcium ~800mg";
+    suppAdvice += "<br>• 1 small pinch iodized salt → iodine + sodium";
+    suppAdvice += "<br>• ¼ tsp psyllium husk powder → fiber";
+    suppAdvice += "<br>• Herb cube — ¼ tsp parsley + Vitamin E + ginger (or spearmint for fish meals)";
+    suppAdvice += "<br>• 1½ tbsp reserved cooking liquid or bone broth";
+    suppAdvice += "<br>You can uncheck any supplement on the meal card if it was skipped for a particular meal.";
+    return suppAdvice;
+  }
+
+  // ── FREEZING / MEAL PREP ──
+  if(/freeze|freezer|batch|meal prep|cook|storage|portion|cube|thaw|defrost|fridge|refrigerate/.test(lower)){
+    var prepAdvice = "🧊 Freezing & batch prep tips:<br>";
+    prepAdvice += "• Protein — cook 3-4 lb, portion into 8 oz bags, freeze flat (thaws faster)<br>";
+    prepAdvice += "• Organ meat — cook small batch, freeze in small cubes<br>";
+    prepAdvice += "• Vegetables — steam batch, portion into 2.5 oz bags, freeze<br>";
+    prepAdvice += "• Herb cube — blend herbs with water, freeze in cubes<br>";
+    prepAdvice += "• Cooking liquid — freeze in cubes, don't pour it out!<br>";
+    prepAdvice += "💡 Protein bags last ~3 months, veg cubes ~2 months, organ/herb cubes ~3 months.";
+    return prepAdvice;
+  }
+
+  // ── NUTRITION TAB HELP ──
+  if(/nutrition|nutrient|vitamin|mineral|aafco|target|deficiency|excess|balance|rda/.test(lower)){
+    var nutAdvice = "📊 The Nutrition tab shows how "+name+"'s actual intake compares to AAFCO targets.<br>";
+    nutAdvice += "• Green = on target • Red = low • Amber = high<br>";
+    nutAdvice += "• Tap any nutrient to see exactly which foods contributed to it<br>";
+    nutAdvice += "• View by Day, Week, Month, or Year<br>";
+    nutAdvice += "The calcium-to-phosphorus ratio (Ca:P) is particularly important — AAFCO requires between 1:1 and 2:1.";
+    return nutAdvice;
+  }
+
+  // ── FEEDING SCHEDULE HELP ──
+  if(/schedule|feed tab|calendar|history|swap|override|mark fed|previous meals/.test(lower)){
+    var schedAdvice = "📅 The Feeding Schedule tab is where you log actual meals:<br>";
+    schedAdvice += "• Each day's AM and PM meals are pre-filled from the rotation<br>";
+    schedAdvice += "• Tap 'Mark Fed' when the meal is served<br>";
+    schedAdvice += "• Use Swap buttons to change any ingredient (broth, starch, organ, veg, protein)<br>";
+    schedAdvice += "• Tap the ✎ next to any amount to adjust portion sizes<br>";
+    schedAdvice += "• The 'Feeding History' section shows past meals — tap to add notes";
+    return schedAdvice;
+  }
+
+  // ── GENERAL DOG CARE ──
+  if(/behavior|training|puppy|senior|care|health|exercise|walk|play|teeth|dental|groom|coat|skin/.test(lower)){
+    var genAdvice = "🐶 This app specializes in nutrition and meal planning, but here are some general tips:<br>";
+    if(/puppy/.test(lower)) genAdvice += "• Puppies need 2-4 meals/day, depending on age. Talk to your vet about a growth formula.<br>";
+    if(/senior/.test(lower)) genAdvice += "• Senior dogs may benefit from joint supplements, softer food textures, and regular vet check-ups.<br>";
+    if(/exercise/.test(lower)) genAdvice += "• Most dogs need 30-60 minutes of exercise daily, but this varies by breed, age, and health.<br>";
+    if(/teeth|dental/.test(lower)) genAdvice += "• Dental chews, raw meaty bones, and regular brushing help maintain dental health.<br>";
+    if(/skin|coat/.test(lower)) genAdvice += "• Omega-3s (from fish oil) and a balanced diet support healthy skin and coat.<br>";
+    genAdvice += "• Always consult your veterinarian for personalized care advice beyond nutrition.";
+    return genAdvice;
+  }
+
+  // ── EMERGENCY / POISON ──
+  if(/poison|toxic|emergency|vet|hospital|poison control|danger|emergency|call the vet/.test(lower)){
+    return "🚨 If you suspect "+name+" has eaten something toxic or is having a medical emergency:<br>• Call your veterinarian immediately<br>• Contact an animal poison control hotline (e.g., ASPCA Poison Control: 1-888-426-4435)<br>• If possible, have the packaging or name of what was eaten ready<br>• This app cannot provide emergency medical advice — please seek professional help right away.";
+  }
+
+  // ── WATER / HYDRATION ──
+  if(/water|hydrate|drink|thirsty/.test(lower)){
+    return "💧 Fresh, clean water should always be available to "+name+". Dogs generally need about 1 ounce of water per pound of body weight daily, but this varies with activity, temperature, and diet. If "+possessive+" eating dry food, "+pronoun+" may drink more. If you're concerned about hydration, check with your vet.";
+  }
+
+  // ── WEIGHT MANAGEMENT ──
+  if(/overweight|obese|weight loss|too fat|slim down|diet/.test(lower)){
+    var w = Math.round(_calcState.weight||60);
+    var cal = Math.round(_calcState.mer||1334);
+    var oz = (_calcState.ozPerDay||31.6).toFixed(1);
+    return "⚖️ "+name+" is currently set at "+w+" lb with a target of ~"+cal+" kcal/day (~"+oz+" oz/day). For weight loss, talk to your vet about a safe calorie reduction — generally 10-20% less than maintenance. The activity factor can be adjusted to 'Weight loss' in the calculator on this tab. Always consult your vet before putting "+name+" on a weight loss plan.";
+  }
+
+  // ── PUPPY SPECIFIC ──
+  if(/puppy|puppies|growth|developing/.test(lower)){
+    return "🐶 Puppy nutrition is different from adult dogs! Puppies need:<br>• Higher calorie density for growth<br>• More frequent meals (3-4x/day for young puppies)<br>• Proper calcium:phosphorus ratio for bone development<br>• DHA for brain development<br>This app is designed for adult dogs, but you can adjust the activity factor to 'Puppy (4 months to adult)' or 'Puppy (under 4 months)' in the calculator. Always consult your vet for a puppy-specific diet plan.";
+  }
+
+  // ── SENIOR SPECIFIC ──
+  if(/senior|older|aged|elderly/.test(lower)){
+    return "🐾 Senior dogs (typically 7+ years, depending on breed) often benefit from:<br>• Higher quality protein for muscle maintenance<br>• Omega-3 fatty acids for joint health<br>• Easier-to-digest ingredients<br>• Adjusted calorie intake if activity has decreased<br>This app's activity factor includes a 'Senior / less active' option in the calculator. Regular vet check-ups are especially important for senior dogs.";
+  }
+
+  // ── FALLBACK ──
+  return "🐾 I can help with a wide range of dog-feeding topics:<br>• How much to feed ("+name+" is ~"+Math.round(_calcState.weight||60)+" lb)<br>• Food safety (e.g., 'Can she have grapes?')<br>• Nutrient status (e.g., 'How is her zinc?')<br>• Today's rotation<br>• Vegetables, fruits, proteins, organs, starches<br>• Freezing & batch prep<br>• Supplements & daily constants<br>• Reading the Nutrition tab<br>• Puppy and senior care<br>• Weight management<br>• And more!";
+}
+function getRandomDogFact(){
+  var facts = [
+    "Did you know? Dogs have about 1,700 taste buds — humans have about 9,000.",
+    "A dog's sense of smell is 10,000 to 100,000 times more sensitive than a human's.",
+    "The average dog can understand about 165 words, and some can learn over 250!",
+    "Dogs are as smart as a 2-year-old child — they can understand pointing and have basic counting skills.",
+    "A dog's nose print is as unique as a human fingerprint.",
+    "Dogs dream just like humans do — they twitch and whimper in their sleep.",
+    "The Basenji dog breed doesn't bark — they make a sound called a 'baroo'.",
+    "Greyhounds can reach speeds of 45 mph, making them the fastest dog breed.",
+    "A dog's whiskers help them 'see' in the dark by sensing air currents.",
+    "Dogs tilt their heads to better hear and understand us.",
+    "The average dog lives about 10-13 years, but small breeds often live longer.",
+    "Dogs have three eyelids — the third one helps keep their eyes moist and protected.",
+    "The Labrador Retriever has been the most popular dog breed in the US for over 30 years.",
+    "Dogs can be trained to detect cancer, diabetes, and even COVID-19!",
+    "The tallest dog ever recorded was a Great Dane named Zeus, who stood 44 inches tall.",
+    "Dogs' noses are wet because they secrete a special mucus that helps absorb scent chemicals.",
+    "A dog's sense of hearing is about 4 times more sensitive than a human's.",
+    "Dogs can see in dim light better than humans because they have more light-sensitive cells.",
+    "The oldest known dog breed is the Saluki, which dates back to 329 BC.",
+    "Dogs' paw pads are made of tough, thick skin that protects them from rough terrain."
+  ];
+  return facts[Math.floor(Math.random() * facts.length)];
+}
+function askAiAdvisor(){
+  if(_aiAdvisorBusy) return;
+  var inputEl = document.getElementById("aiAdvisorInput");
+  var statusEl = document.getElementById("aiAdvisorStatus");
+  var answerEl = document.getElementById("aiAdvisorAnswer");
+  var q = inputEl ? inputEl.value.trim() : "";
+  if(!q){ 
+    if(statusEl) { statusEl.className="usda-status err"; statusEl.textContent="Type a question first."; }
+    return; 
+  }
+
+  _aiAdvisorBusy = true;
+  if(statusEl) { statusEl.className="usda-status"; statusEl.textContent=""; }
+  if(answerEl) { answerEl.innerHTML = "..."; }
+
+  setTimeout(function(){
+    var answer = generateAdvisorAnswer(q);
+    // If the answer is the generic fallback, append a random fun fact
+    if(answer.indexOf("I can help with a wide range") !== -1){
+      answer += "<br><br>🐕 " + getRandomDogFact();
+    }
+    if(answerEl) { answerEl.innerHTML = escapeHtml(answer).replace(/\n/g,"<br>"); }
+    _aiAdvisorBusy = false;
+  }, 220);
+}
+function askHomeAdvisor(){
+  var inputEl = document.getElementById("homeAdvisorInput");
+  var answerEl = document.getElementById("homeAdvisorAnswer");
+  if(!inputEl || !answerEl) return;
+  var q = inputEl.value.trim();
+  if(!q) return;
+  answerEl.innerHTML = "...";
+  setTimeout(function(){
+    var answer = generateAdvisorAnswer(q);
+    if(answer.indexOf("I can help with a wide range") !== -1){
+      answer += "<br><br>🐕 " + getRandomDogFact();
+    }
+    answerEl.innerHTML = escapeHtml(answer).replace(/\n/g,"<br>");
+  }, 200);
+}
